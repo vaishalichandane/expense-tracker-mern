@@ -1,8 +1,19 @@
 import { useEffect, useState } from 'react';
+
+import { useNavigate } from 'react-router-dom';
+
 import API from '../services/api';
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+} from 'recharts';
 
 import {
   PieChart,
@@ -14,6 +25,8 @@ import {
 
 function DashboardPage() {
 
+  const navigate = useNavigate();
+
   const [transactions, setTransactions] =
     useState([]);
 
@@ -22,6 +35,14 @@ function DashboardPage() {
 
   const [search, setSearch] =
     useState('');
+    const [categoryFilter, setCategoryFilter] =
+  useState('');
+
+const [selectedDate, setSelectedDate] =
+  useState('');
+
+const [loading, setLoading] =
+  useState(false);
 
   const [editId, setEditId] =
     useState(null);
@@ -34,20 +55,32 @@ function DashboardPage() {
   });
 
   const handleChange = (e) => {
+
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
+
   };
 
   const fetchTransactions = async () => {
+
     try {
 
+      setLoading(true);
       const res = await API.get(
-        '/transactions'
+        '/transactions',
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem(
+              'token'
+            )}`,
+          },
+        }
       );
 
       setTransactions(res.data);
+      setLoading(false);
 
     } catch (error) {
       console.log(error);
@@ -55,10 +88,20 @@ function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchTransactions();
+
+    const token =
+      localStorage.getItem('token');
+
+    if (!token) {
+      navigate('/');
+    } else {
+      fetchTransactions();
+    }
+
   }, []);
 
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
     try {
@@ -67,7 +110,14 @@ function DashboardPage() {
 
         await API.put(
           `/transactions/${editId}`,
-          formData
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(
+                'token'
+              )}`,
+            },
+          }
         );
 
         setEditId(null);
@@ -76,7 +126,14 @@ function DashboardPage() {
 
         await API.post(
           '/transactions',
-          formData
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem(
+                'token'
+              )}`,
+            },
+          }
         );
 
       }
@@ -98,10 +155,18 @@ function DashboardPage() {
   };
 
   const deleteTransaction = async (id) => {
+
     try {
 
       await API.delete(
-        `/transactions/${id}`
+        `/transactions/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem(
+              'token'
+            )}`,
+          },
+        }
       );
 
       fetchTransactions();
@@ -163,33 +228,54 @@ function DashboardPage() {
 
   const balance = income - expense;
 
-  const data = [
-    { name: 'Income', value: income },
-    { name: 'Expense', value: expense },
-  ];
+const data = [
+  {
+    name: 'Income',
+    value: income,
+  },
+  {
+    name: 'Expense',
+    value: expense,
+  },
+];
 
   const COLORS = ['#22c55e', '#ef4444'];
 
   const filteredTransactions =
-    transactions.filter((item) => {
+  transactions.filter((item) => {
 
-      const matchesFilter =
-        filter === 'all'
-          ? true
-          : item.type === filter;
+    const matchesFilter =
+      filter === 'all'
+        ? true
+        : item.type === filter;
 
-      const matchesSearch =
-        item.title
-          .toLowerCase()
-          .includes(search.toLowerCase());
+    const matchesSearch =
+      item.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
-      return (
-        matchesFilter &&
-        matchesSearch
-      );
-    });
+    const matchesCategory =
+      categoryFilter === ''
+        ? true
+        : item.category === categoryFilter;
+
+    const matchesDate =
+      selectedDate === ''
+        ? true
+        : new Date(item.createdAt)
+            .toLocaleDateString('en-CA') ===
+          selectedDate;
+
+    return (
+      matchesFilter &&
+      matchesSearch &&
+      matchesCategory &&
+      matchesDate
+    );
+  });
 
   return (
+
     <div className="min-h-screen bg-gray-900 text-white">
 
       <nav className="bg-black p-4 flex justify-between items-center">
@@ -198,15 +284,60 @@ function DashboardPage() {
           Expense Tracker
         </h1>
 
-        <button
-          onClick={() => {
-            localStorage.removeItem('token');
-            alert('Logged Out');
-          }}
-          className="bg-red-600 px-4 py-2 rounded-lg"
-        >
-          Logout
-        </button>
+        <div className="flex gap-4 items-center">
+
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg"
+          >
+            Dashboard
+          </button>
+
+          <button
+            onClick={() => navigate('/transactions')}
+            className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg"
+          >
+            Transactions
+          </button>
+
+          <button
+            onClick={() => navigate('/profile')}
+            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg"
+          >
+            Profile
+          </button>
+
+          <select
+            onChange={(e) =>
+             setCategoryFilter(e.target.value)
+            }
+            className="bg-gray-700 p-2 rounded-lg"
+          >
+
+            <option value="">
+              All Categories
+            </option>
+
+            <option value="Food">
+              Food
+            </option>
+
+            <option value="Shopping">
+              Shopping
+            </option>
+
+          </select>
+          <button
+            onClick={() => {
+              localStorage.removeItem('token');
+              navigate('/');
+            }}
+            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+          >
+            Logout
+          </button>
+
+        </div>
 
       </nav>
 
@@ -347,6 +478,37 @@ function DashboardPage() {
               <Legend />
 
             </PieChart>
+            <div className="bg-gray-800 p-6 rounded-xl mb-8">
+
+  <h2 className="text-2xl font-bold text-center mb-4">
+    Income vs Expense
+  </h2>
+
+  <ResponsiveContainer
+    width="100%"
+    height={300}
+  >
+
+    <BarChart data={data}>
+
+      <CartesianGrid strokeDasharray="3 3" />
+
+      <XAxis dataKey="name" />
+
+      <YAxis />
+
+      <Tooltip />
+
+      <Bar
+        dataKey="value"
+        fill="#3b82f6"
+      />
+
+    </BarChart>
+
+  </ResponsiveContainer>
+
+</div>
 
           </div>
 
